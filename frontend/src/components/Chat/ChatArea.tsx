@@ -6,8 +6,9 @@ import { StreamingDots } from './StreamingDots';
 import { useAppStore } from '../../lib/store';
 import { shouldAutoplayFinishedReply, useTtsStore } from '../../lib/tts';
 import { stripThinkTags } from '../../lib/message-text';
-import { Sparkles, PanelRightOpen, PanelRightClose, Database, MessageSquare, X } from 'lucide-react';
+import { Sparkles, PanelRightOpen, PanelRightClose, Database, MessageSquare, X, Zap } from 'lucide-react';
 import { listConnectors } from '../../lib/connectors-api';
+import { IronManArcReactor } from './IronManArcReactor';
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -90,6 +91,7 @@ export function ChatArea() {
   // Check if any data sources are connected
   const [hasConnectedSources, setHasConnectedSources] = useState<boolean | null>(null);
   const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [hudMode, setHudMode] = useState(false);
 
   useEffect(() => {
     listConnectors()
@@ -135,7 +137,20 @@ export function ChatArea() {
   return (
     <div className="flex flex-col h-full">
       {/* Toggle bar */}
-      <div className="flex items-center justify-end px-3 py-1.5 shrink-0">
+      <div className="flex items-center justify-between px-3 py-1.5 shrink-0">
+        <button
+          onClick={() => setHudMode(!hudMode)}
+          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono transition-all cursor-pointer ${
+            hudMode
+              ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-400/50 shadow-[0_0_10px_rgba(0,240,255,0.3)]'
+              : 'text-zinc-400 hover:text-cyan-400 border border-transparent'
+          }`}
+          title="Toggle J.A.R.V.I.S. Arc Reactor HUD"
+        >
+          <Zap size={13} className={hudMode ? 'animate-pulse text-cyan-400' : ''} />
+          <span>HUD {hudMode ? 'ONLINE' : 'MODE'}</span>
+        </button>
+
         <button
           onClick={toggleSystemPanel}
           className="p-1.5 rounded-md transition-colors cursor-pointer"
@@ -180,19 +195,20 @@ export function ChatArea() {
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto"
       >
+        {hudMode && !isEmpty && (
+          <div className="sticky top-0 z-10 border-b border-cyan-500/20 bg-zinc-950/80 backdrop-blur-md mb-4 shadow-[0_4px_16px_rgba(0,240,255,0.08)]">
+            <IronManArcReactor compact />
+          </div>
+        )}
+
         {isEmpty ? (
-          <div className="flex flex-col items-center justify-center h-full px-4">
-            <div
-              className="w-12 h-12 rounded-2xl flex items-center justify-center mb-4"
-              style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}
-            >
-              <Sparkles size={24} />
-            </div>
-            <h2 className="text-xl font-semibold mb-2" style={{ color: 'var(--color-text)' }}>
-              {getGreeting()}
+          <div className="flex flex-col items-center justify-center min-h-full px-4 py-6">
+            <IronManArcReactor />
+            <h2 className="text-xl font-semibold mt-2 mb-1 tracking-wide" style={{ color: 'var(--color-text)' }}>
+              {getGreeting()}, Bos Ridho
             </h2>
-            <p className="text-sm text-center max-w-sm mb-6" style={{ color: 'var(--color-text-secondary)' }}>
-              Ask anything. Your AI runs locally — private, fast, and always available.
+            <p className="text-xs font-mono text-center max-w-sm mb-6 text-cyan-500/80 tracking-wider uppercase">
+              J.A.R.V.I.S. Neural Core // Ready for Voice or Text Command
             </p>
 
             {/* Quick action hints */}

@@ -84,14 +84,15 @@ export const useTtsStore = create<TtsStore>((set, get) => ({
 
   ensureHealth: () => {
     if (healthProbe) return healthProbe;
+    const hasBrowserSpeech = typeof window !== 'undefined' && 'speechSynthesis' in window;
     healthProbe = fetchTtsHealth()
       .then((health) => {
-        set({ available: health.available });
-        if (!health.available) healthProbe = null;
+        set({ available: health.available || hasBrowserSpeech });
+        if (!health.available && !hasBrowserSpeech) healthProbe = null;
       })
       .catch(() => {
-        set({ available: false });
-        healthProbe = null;
+        set({ available: hasBrowserSpeech });
+        if (!hasBrowserSpeech) healthProbe = null;
       });
     return healthProbe;
   },
@@ -113,27 +114,52 @@ export const useTtsStore = create<TtsStore>((set, get) => ({
     controller = ac;
 
     try {
-      const blob = await synthesizeSpeech(trimmed, { signal: ac.signal });
-      if (mine !== token) return;
-
-      const url = URL.createObjectURL(blob);
-      objectUrl = url;
-      const el = new Audio(url);
-      audio = el;
-
-      el.onended = () => {
+      let played = false;
+      try {
+        const blob = await synthesizeSpeech(trimmed, { signal: ac.signal });
         if (mine !== token) return;
-        teardown();
-        set({ state: 'idle', speakingId: null });
-      };
-      el.onerror = () => {
-        if (mine !== token) return;
-        teardown();
-        set({ state: 'idle', speakingId: null, error: 'Playback failed', errorId: id });
-      };
 
-      await el.play();
-      if (mine === token) set({ state: 'speaking', speakingId: id });
+        const url = URL.createObjectURL(blob);
+        objectUrl = url;
+        const el = new Audio(url);
+        audio = el;
+
+        el.onended = () => {
+          if (mine !== token) return;
+          teardown();
+          set({ state: 'idle', speakingId: null });
+        };
+        el.onerror = () => {
+          if (mine !== token) return;
+          teardown();
+          set({ state: 'idle', speakingId: null, error: 'Playback failed', errorId: id });
+        };
+
+        await el.play();
+        played = true;
+      } catch (backendErr) {
+        if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+          const utterance = new SpeechSynthesisUtterance(trimmed);
+          const voices = window.speechSynthesis.getVoices();
+          const preferred = voices.find(v => v.lang.startsWith('en-GB') || v.name.includes('Natural') || v.lang.startsWith('id') || v.lang.startsWith('en')) || voices[0];
+          if (preferred) utterance.voice = preferred;
+          utterance.onend = () => {
+            if (mine !== token) return;
+            set({ state: 'idle', speakingId: null });
+          };
+          utterance.onerror = () => {
+            if (mine !== token) return;
+            set({ state: 'idle', speakingId: null });
+          };
+          window.speechSynthesis.cancel();
+          window.speechSynthesis.speak(utterance);
+          played = true;
+        } else {
+          throw backendErr;
+        }
+      }
+
+      if (mine === token && played) set({ state: 'speaking', speakingId: id });
     } catch (err) {
       if (mine !== token) return;
       if (err instanceof DOMException && err.name === 'AbortError') return;
@@ -150,6 +176,9 @@ export const useTtsStore = create<TtsStore>((set, get) => ({
   stop: () => {
     token += 1;
     teardown();
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
     set({ state: 'idle', speakingId: null, error: null, errorId: null });
   },
 }));
